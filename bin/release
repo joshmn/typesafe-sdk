@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+version="${1:-minor}"
+version_file="lib/typesafe-sdk/api/version.rb"
+
+if [ "$version" = "-h" ] || [ "$version" = "--help" ]; then
+  echo "usage: bin/release [patch|minor|major|VERSION] (defaults to minor)"
+  exit 0
+fi
+
+current="$(ruby -e "require './$version_file'; print Typesafe::SDK::VERSION")"
+
+case "$version" in
+  patch|minor|major)
+    version="$(ruby -e '
+      major, minor, patch = (Gem::Version.new(ARGV[0]).release.segments + [0, 0, 0]).first(3)
+      case ARGV[1]
+      when "major" then major += 1; minor = 0; patch = 0
+      when "minor" then minor += 1; patch = 0
+      when "patch" then patch += 1
+      end
+      print [major, minor, patch].join(".")
+    ' "$current" "$version")"
+    ;;
+esac
+
+if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?$ ]]; then
+  echo "$version doesn't look like a version number"
+  exit 1
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" != "main" ]; then
+  echo "you're on $branch, switch to main first"
+  exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "working tree is dirty, commit or stash first"
+  exit 1
+fi
+
+git fetch origin main --tags
+if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+  echo "main is not in sync with origin/main, pull or push first"
+  exit 1
+fi
+
+if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+  echo "tag v$version already exists"
+  exit 1
+fi
+
+if [ "$current" = "$version" ]; then
+  echo "version.rb is already $version, pick a new version"
+  exit 1
+fi
+
+if ! ruby -e 'exit Gem::Version.new(ARGV[1]) > Gem::Version.new(ARGV[0])' "$current" "$version"; then
+  echo "$version is not greater than current version $current"
+  exit 1
+fi
+
+echo "bumping $current to $version"
+ruby -i -pe "sub(/VERSION = \".*\"/, 'VERSION = \"$version\"')" "$version_file"
+bundle install --quiet
+
+echo "running tests"
+if ! bundle exec rake; then
+  echo "tests failed, reverting version bump"
+  git checkout -- "$version_file" Gemfile.lock
+  exit 1
+fi
+
+git add "$version_file" Gemfile.lock
+git commit -m "Release v$version"
+git tag -a "v$version" -m "v$version"
+
+echo "pushing main and v$version"
+git push origin main
+git push origin "v$version"
+
+echo "done, github actions will take it from here"
