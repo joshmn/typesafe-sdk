@@ -11,11 +11,10 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Ruby client for the TypeSafe System One API"
   spec.description = "Ask TypeSafe models typed Noul, Choice, and Score questions about text or structured state " \
-                     "and get calibrated, structured answers back. Built on the Ruby standard library, with Zeitwerk " \
-                     "for loading."
+                     "and get calibrated, structured answers back."
   spec.homepage = "https://github.com/joshmn/typesafe-sdk"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.2.0"
+  spec.required_ruby_version = ">= 3.1.0"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
