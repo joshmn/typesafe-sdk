@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 version="${1:-minor}"
-version_file="lib/typesafe-sdk/api/version.rb"
+version_file="lib/typesafe/sdk/version.rb"
 
 if [ "$version" = "-h" ] || [ "$version" = "--help" ]; then
   echo "usage: bin/release [patch|minor|major|VERSION] (defaults to minor)"
