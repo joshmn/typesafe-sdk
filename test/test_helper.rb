@@ -61,8 +61,13 @@ class LocalServer
       break if request.nil?
 
       @requests.push(request)
-      status, headers, body = @handler.call(request)
-      write_response(socket: socket, status: status, headers: headers, body: body)
+      response = @handler.call(request)
+      if response.is_a?(String)
+        socket.write(response)
+      else
+        status, headers, body = response
+        write_response(socket: socket, status: status, headers: headers, body: body)
+      end
     end
   rescue IOError, SystemCallError
     nil

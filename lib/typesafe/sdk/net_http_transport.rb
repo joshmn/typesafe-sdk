@@ -10,6 +10,7 @@ module Typesafe
         IOError,
         OpenSSL::SSL::SSLError,
         Net::HTTPBadResponse,
+        Net::HTTPHeaderSyntaxError,
         Net::ProtocolError,
         Zlib::Error
       ].freeze

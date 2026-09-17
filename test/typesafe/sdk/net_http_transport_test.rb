@@ -50,6 +50,18 @@ class NetHttpTransportTest < Minitest::Test
     assert_equal(0.2, error.timeout)
   end
 
+  def test_malformed_header_raises_connection_error
+    @server = LocalServer.new { |_request| "HTTP/1.1 200 OK\r\nContent-Length: abc\r\n\r\n{}" }
+    client = Typesafe::SDK::Client.new(
+      api_key: "sk-local",
+      base_url: @server.url,
+      retry_policy: Typesafe::SDK::RetryPolicy.new(max_retries: 0)
+    )
+    error = assert_raises(Typesafe::SDK::APIConnectionError) { client.system_one(state: "hi", questions: noul_questions) }
+
+    assert_match(/connection error: Net::HTTPHeaderSyntaxError/, error.message)
+  end
+
   def test_connection_refused_raises_connection_error
     port = TCPServer.open("127.0.0.1", 0) { |server| server.addr[1] }
     client = Typesafe::SDK::Client.new(
