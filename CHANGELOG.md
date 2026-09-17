@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- `Score` and raw-hash score questions now require at least two levels, matching the API and the official SDKs
+
 ## [0.1.0] - 2026-09-16
 
 - Initial release, mirroring the TypeSafe Python SDK 0.6.0

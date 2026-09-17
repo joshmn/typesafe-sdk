@@ -30,8 +30,13 @@ class QuestionsTest < Minitest::Test
   def test_constructor_validation
     assert_raises(Typesafe::SDK::Error) { Typesafe::SDK::Choice.new(criteria: %w[a b]) }
     assert_raises(Typesafe::SDK::Error) { Typesafe::SDK::Score.new(criteria: []) }
+    assert_raises(Typesafe::SDK::Error) { Typesafe::SDK::Score.new(criteria: ["only"]) }
     assert_raises(Typesafe::SDK::Error) { Typesafe::SDK::Score.new(criteria: { 0 => "low" }) }
     assert_raises(Typesafe::SDK::Error) { Typesafe::SDK::Noul.new(criteria: "yes") }
+  end
+
+  def test_score_accepts_two_levels
+    assert_equal %w[low high], Typesafe::SDK::Score.new(criteria: %w[low high]).criteria
   end
 
   def test_questions_are_immutable_values
@@ -69,6 +74,7 @@ class QuestionsTest < Minitest::Test
       { a: { type: "choice" } },
       { a: { type: "score" } },
       { a: { type: "score", criteria: [] } },
+      { a: { type: "score", criteria: ["only"] } },
       { 1 => { type: "noul" } }
     ].each do |questions|
       assert_raises(Typesafe::SDK::Error, questions.inspect) { Typesafe::SDK::QuestionSet.normalize(questions) }
