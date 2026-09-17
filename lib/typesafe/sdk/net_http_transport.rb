@@ -15,6 +15,105 @@ module Typesafe
         Zlib::Error
       ].freeze
 
+      # Closes the connection's socket once the request timeout has elapsed, or
+      # when the body reader asks it to, so whichever blocking read Net::HTTP is
+      # in fails at once instead of waiting out its own per-operation timeout.
+      # Net::HTTP timeouts are per socket operation, so without this a server
+      # trickling bytes could hold a request open indefinitely.
+      #
+      # Only the raw IO is closed from the watchdog thread; Net::HTTP's own
+      # session state is torn down by the requesting thread afterwards.
+      class Watchdog
+        def initialize(timeout:)
+          @timeout = timeout
+          @deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+          @lock = Mutex.new
+          @wakeup = ConditionVariable.new
+          @connection = nil
+          @error = nil
+          @done = false
+          @thread = Thread.new { expire }
+        end
+
+        # Registers the connection to close on expiry; raises if the deadline
+        # already passed while it was being established.
+        def connection=(connection)
+          error = @lock.synchronize do
+            @connection = connection
+            expire_if_due
+            @error
+          end
+          raise(error) if error
+        end
+
+        def abort(error)
+          @lock.synchronize do
+            return if @done
+
+            @error ||= error
+            close_io
+          end
+        end
+
+        def error
+          @lock.synchronize { @error }
+        end
+
+        # Stops the timer and returns the abort error, if any, so a response that
+        # raced the deadline loses. The deadline is checked here too, in case the
+        # timer thread was late to run.
+        def finish
+          error = @lock.synchronize do
+            expire_if_due unless @done
+            @done = true
+            @wakeup.broadcast
+            @error
+          end
+          @thread.join
+          error
+        end
+
+        private
+
+        def expire
+          @lock.synchronize do
+            until @done
+              remaining = @deadline - now
+              break unless remaining.positive?
+
+              @wakeup.wait(@lock, remaining)
+            end
+            # Keep closing until the request thread is done: Net::HTTP may open a
+            # replacement socket for a stale keep-alive connection mid-request.
+            until @done
+              expire_if_due
+              @wakeup.wait(@lock, 0.05)
+            end
+          end
+        end
+
+        def expire_if_due
+          return if now < @deadline
+
+          @error ||= APITimeoutError.new(timeout: @timeout)
+          close_io
+        end
+
+        # Closes the raw TCP socket, beneath any TLS layer, so the blocked read
+        # fails without a graceful TLS shutdown that could itself block.
+        def close_io
+          io = @connection&.instance_variable_get(:@socket)&.io
+          io = io.to_io if io.respond_to?(:to_io)
+          io&.close
+        rescue IOError, SystemCallError, OpenSSL::SSL::SSLError
+          nil
+        end
+
+        def now
+          Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        end
+      end
+
       attr_reader :max_response_bytes
 
       def initialize(pool: ConnectionPool.new, max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES)
@@ -30,27 +129,31 @@ module Typesafe
         uri = URI.parse(request.url)
         connection = nil
         reusable = false
-        aborted = nil
+        watchdog = Watchdog.new(timeout: request.timeout)
         begin
           connection = pool.checkout(uri: uri, timeout: request.timeout)
+          watchdog.connection = connection
           response = nil
           connection.request(build(uri: uri, request: request)) do |raw|
             response = read(raw) do |error|
               # Close the socket before unwinding so Net::HTTP's own cleanup reads
               # (chunk terminators, trailers) fail at once instead of blocking and
               # replacing this error with a timeout.
-              aborted = error
-              pool.discard(connection)
+              watchdog.abort(error)
               raise(error)
             end
           end
+          aborted = watchdog.finish
+          raise(aborted) if aborted
+
           reusable = true
           response
         rescue Timeout::Error
-          raise(aborted || APITimeoutError.new(timeout: request.timeout))
+          raise(watchdog.error || APITimeoutError.new(timeout: request.timeout))
         rescue *CONNECTION_ERRORS => e
-          raise(aborted || APIConnectionError.new("connection error: #{e.class}: #{e.message}"))
+          raise(watchdog.error || APIConnectionError.new("connection error: #{e.class}: #{e.message}"))
         ensure
+          watchdog.finish
           reusable ? pool.checkin(uri: uri, connection: connection) : pool.discard(connection)
         end
       end

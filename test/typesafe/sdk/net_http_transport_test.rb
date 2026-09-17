@@ -9,6 +9,20 @@ class NetHttpTransportTest < Minitest::Test
     @server.stop if @server
   end
 
+  def assert_timed_out
+    client = Typesafe::SDK::Client.new(
+      api_key: "sk-local",
+      base_url: @server.url,
+      timeout: 0.5,
+      retry_policy: Typesafe::SDK::RetryPolicy.new(max_retries: 0)
+    )
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    error = assert_raises(Typesafe::SDK::APITimeoutError) { client.models.list }
+
+    assert_equal(0.5, error.timeout)
+    assert_operator(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 1.5)
+  end
+
   def test_round_trip_and_connection_reuse
     @server = LocalServer.new do |request|
       body = request[:path] == "/v1/models" ? MODELS_BODY : SYSTEM_ONE_BODY
@@ -112,6 +126,48 @@ class NetHttpTransportTest < Minitest::Test
     end
   end
 
+  def test_slow_body_raises_timeout_error
+    @server = LocalServer.new do |_request|
+      lambda do |socket|
+        socket.write("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n")
+        100.times do
+          socket.write("x")
+          sleep(0.1)
+        end
+      end
+    end
+
+    assert_timed_out
+  end
+
+  def test_slow_headers_raise_timeout_error
+    @server = LocalServer.new do |_request|
+      lambda do |socket|
+        socket.write("HTTP/1.1 200 OK\r\n")
+        "Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}".each_char do |char|
+          socket.write(char)
+          sleep(0.1)
+        end
+      end
+    end
+
+    assert_timed_out
+  end
+
+  def test_slow_chunk_framing_raises_timeout_error
+    @server = LocalServer.new do |_request|
+      lambda do |socket|
+        socket.write("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}")
+        sleep(0.3)
+        socket.write("\r\n")
+        sleep(5)
+        socket.write("0\r\n\r\n")
+      end
+    end
+
+    assert_timed_out
+  end
+
   def test_connection_refused_raises_connection_error
     port = TCPServer.open("127.0.0.1", 0) { |server| server.addr[1] }
     client = Typesafe::SDK::Client.new(
@@ -123,6 +179,17 @@ class NetHttpTransportTest < Minitest::Test
 
     refute_instance_of(Typesafe::SDK::APITimeoutError, error)
     assert_match(/connection error/, error.message)
+  end
+
+  def test_deadline_does_not_break_a_reused_connection
+    @server = LocalServer.new { |_request| [200, {}, JSON.generate(MODELS_BODY)] }
+    Typesafe::SDK::Client.open(api_key: "sk-local", base_url: @server.url, timeout: 0.3) do |client|
+      3.times { assert_equal("jev-latest", client.models.list.first.name) }
+      sleep(0.4)
+      assert_equal("jev-latest", client.models.list.first.name)
+    end
+
+    assert_equal(1, @server.connections)
   end
 
   def test_logs_redacted_headers

@@ -178,7 +178,7 @@ client = Typesafe::SDK::Client.new(
 | `api_key:` | required |
 | `base_url:` | `https://api.typesafe.ai` |
 | `model:` | `jev-latest` |
-| `timeout:` | `10.0` seconds per HTTP operation |
+| `timeout:` | `10.0` seconds, per socket operation and for the whole request |
 | `headers:` | `{}` |
 | `user_agent:` | `typesafe-sdk-ruby/VERSION` |
 | `logger:` | none |
@@ -227,7 +227,7 @@ client = Typesafe::SDK::Client.new(api_key: api_key, retry_policy: policy)
 client.system_one(state: state, questions: questions, retry_policy: Typesafe::SDK::RetryPolicy.new(max_retries: 0))
 ```
 
-`timeout` on a retry policy is the total budget for the call across every attempt and sleep, and `nil` turns it off. That's a different thing from the client's `timeout:`, which caps each individual HTTP operation. Retries after the first attempt send an `X-TypeSafe-Retry-Count` header.
+`timeout` on a retry policy is the total budget for the call across every attempt and sleep, and `nil` turns it off. That's a different thing from the client's `timeout:`, which caps each socket operation and, once the connection is up, the request as a whole: a watchdog closes the socket when the time is up and `APITimeoutError` is raised, whatever the server was doing at the time. Opening the connection is bounded separately, by the same number for the TCP connect and again for the TLS handshake. Retries after the first attempt send an `X-TypeSafe-Retry-Count` header.
 
 `exceptions` and `predicate` let you retry on things the built-in rules don't cover:
 
@@ -306,7 +306,7 @@ Typesafe::SDK::Client.open(api_key: api_key) do |client|
 end
 ```
 
-Proxies come from the usual `http_proxy`/`https_proxy` environment variables, because that's what `Net::HTTP` does.
+Proxies come from the usual `http_proxy`/`https_proxy` environment variables, because that's what `Net::HTTP` does. `Net::HTTP`'s own silent re-send of a GET after a dropped connection is turned off; retrying is the retry policy's job, so it stays visible and within the budget.
 
 Responses are read in chunks and abandoned once they go past `max_response_bytes` (10 MiB by default), counted after any gzip decoding, so a misbehaving endpoint can't make the client buffer an unbounded body. The limit only applies to the built-in transport; passing both `transport:` and `max_response_bytes:` raises.
 
@@ -340,7 +340,7 @@ There are no environment variables. The Python SDK reads `TYPESAFE_API_KEY` and 
 
 `request_id` returns `nil` when the header is missing instead of raising.
 
-`timeout:` is a single number of seconds. There's no equivalent to `httpx.Timeout` for setting connect and read separately.
+`timeout:` is a single number of seconds. There's no equivalent to `httpx.Timeout` for setting connect and read separately, and unlike httpx it also bounds the whole request, so a server that trickles headers or body can't hold a call open past it.
 
 The SDK identifies itself as `typesafe-sdk-ruby` in `X-TypeSafe-SDK`, and in `User-Agent` unless you override it.
 
