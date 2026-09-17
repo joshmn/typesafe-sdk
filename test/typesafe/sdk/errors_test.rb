@@ -23,6 +23,8 @@ class ErrorsTest < Minitest::Test
     assert_operator(Typesafe::SDK::APIError, :<, Typesafe::SDK::Error)
     assert_operator(Typesafe::SDK::APITimeoutError, :<, Typesafe::SDK::APIConnectionError)
     assert_operator(Typesafe::SDK::APIResponseValidationError, :<, Typesafe::SDK::APIError)
+    assert_operator(Typesafe::SDK::ResponseTooLargeError, :<, Typesafe::SDK::Error)
+    refute_operator(Typesafe::SDK::ResponseTooLargeError, :<, Typesafe::SDK::APIConnectionError)
     assert_operator(Typesafe::SDK::Error, :<, StandardError)
   end
 

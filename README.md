@@ -184,6 +184,7 @@ client = Typesafe::SDK::Client.new(
 | `logger:` | none |
 | `retry_policy:` | `Typesafe::SDK::RetryPolicy.new` |
 | `transport:` | `Typesafe::SDK::NetHttpTransport.new` |
+| `max_response_bytes:` | `10 * 1024 * 1024` |
 
 `system_one` also takes `model:`, `timeout:`, `retry_policy:`, `extra_headers:`, and `extra_body:` for a single call. `models.list` takes everything except the body stuff.
 
@@ -265,6 +266,7 @@ end
 | `RateLimitError` | 429, with `retry_after_ms` |
 | `InternalServerError` | 500 and up, including 529 |
 | `APIResponseValidationError` | a 2xx whose body is missing something required, with `field_path` like `"answers.tone.confidence"` |
+| `ResponseTooLargeError` | the response body went past `max_response_bytes`, with `limit`; not retried |
 | `APIConnectionError` | the request never got a response |
 | `APITimeoutError` | a subclass of `APIConnectionError`, with `timeout` |
 
@@ -305,6 +307,8 @@ end
 ```
 
 Proxies come from the usual `http_proxy`/`https_proxy` environment variables, because that's what `Net::HTTP` does.
+
+Responses are read in chunks and abandoned once they go past `max_response_bytes` (10 MiB by default), counted after any gzip decoding, so a misbehaving endpoint can't make the client buffer an unbounded body. The limit only applies to the built-in transport; passing both `transport:` and `max_response_bytes:` raises.
 
 ## Custom transports
 
