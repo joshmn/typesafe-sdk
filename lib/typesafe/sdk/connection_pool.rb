@@ -67,6 +67,9 @@ module Typesafe
       def start(uri:, timeout:)
         connection = Net::HTTP.new(uri.host, uri.port)
         connection.use_ssl = uri.scheme == "https"
+        # Net::HTTP silently re-sends idempotent requests once on a connection
+        # error, outside the SDK's retry policy and its deadline.
+        connection.max_retries = 0
         apply_timeout(connection: connection, timeout: timeout)
         connection.start
       end

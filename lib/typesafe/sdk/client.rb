@@ -27,7 +27,8 @@ module Typesafe
         user_agent: nil,
         retry_policy: nil,
         logger: nil,
-        transport: nil
+        transport: nil,
+        max_response_bytes: nil
       )
         @configuration = Configuration.resolve(
           api_key: api_key,
@@ -39,7 +40,7 @@ module Typesafe
           logger: logger
         )
         @retry_policy = retry_policy || RetryPolicy.new
-        @transport = transport || NetHttpTransport.new
+        @transport = resolve_transport(transport: transport, max_response_bytes: max_response_bytes)
         @requester = Requester.new(transport: @transport, logger: @configuration.logger)
         @models = Models.new(configuration: @configuration, requester: @requester, retry_policy: @retry_policy)
       end
@@ -90,6 +91,17 @@ module Typesafe
       private
 
       attr_reader :configuration, :transport, :requester
+
+      def resolve_transport(transport:, max_response_bytes:)
+        if transport.nil?
+          return NetHttpTransport.new if max_response_bytes.nil?
+
+          return NetHttpTransport.new(max_response_bytes: max_response_bytes)
+        end
+        raise(Error, "max_response_bytes only applies to the default transport") unless max_response_bytes.nil?
+
+        transport
+      end
 
       def system_one_body(state:, questions:, model:, extra_body:)
         raise(Error, "state must be a string, hash, or array") unless JsonValue.content?(state)
