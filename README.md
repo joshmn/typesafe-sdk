@@ -226,7 +226,7 @@ client = Typesafe::SDK::Client.new(api_key: api_key, retry_policy: policy)
 client.system_one(state: state, questions: questions, retry_policy: Typesafe::SDK::RetryPolicy.new(max_retries: 0))
 ```
 
-`timeout` on a retry policy is the total budget for the call across every attempt and sleep, and `nil` turns it off. That's a different thing from the client's `timeout:`, which caps each individual HTTP operation. Retries after the first attempt send an `X-TypeSafe-Retry-Count` header.
+`timeout` on a retry policy is the total budget for the call across every attempt and sleep, and `nil` turns it off. The budget is checked before each sleep: a retry is skipped when the time already spent plus its planned delay reaches it. It never cuts short an attempt that's already in flight. That's a different thing from the client's `timeout:`, which caps each individual HTTP operation. Retries after the first attempt send an `X-TypeSafe-Retry-Count` header.
 
 `exceptions` and `predicate` let you retry on things the built-in rules don't cover:
 
@@ -275,6 +275,8 @@ POST https://api.typesafe.ai/v1/systemone: 401 Cannot authenticate with the serv
 ```
 
 Those are raised after retries run out. Errors that aren't retryable (a 422, say) are raised on the first attempt.
+
+A retry resends the request. `system_one` is a POST and the SDK has no idempotency guarantee, so if a retryable failure lands after the server already processed the call (a timeout while waiting for the answer, or a 5xx from a proxy in front of a request that completed), the retry may be processed, and charged, a second time. `X-TypeSafe-Retry-Count` tells the server it's a retry; whether anything deduplicates on it is up to the API. If duplicates matter to you, use `RetryPolicy.new(max_retries: 0)` and retry on your own terms, or `api_timeout_error: false` to keep retrying everything except timeouts. `models.list` is a GET and safe to retry.
 
 ## Logging
 
