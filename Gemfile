@@ -4,6 +4,9 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "irb"
 gem "minitest", ">= 5.20"
 gem "rake", "~> 13.0"
+
+group :development do
+  gem "irb"
+end

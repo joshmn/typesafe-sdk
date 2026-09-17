@@ -9,6 +9,8 @@ on:
 
   workflow_call:
 
+  workflow_dispatch:
+
 permissions:
   contents: read
 
@@ -17,9 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}
     strategy:
+      fail-fast: false
       matrix:
         ruby:
-          - '3.4.2'
+          - '3.2'
+          - '3.3'
+          - '3.4'
+    env:
+      # irb (only needed for bin/console) pulls in rdoc and rbs, which need Ruby 3.3+.
+      BUNDLE_WITHOUT: development
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
