@@ -139,6 +139,30 @@ class ClientTest < Minitest::Test
     assert_equal(1.5, transport.requests[1].timeout)
   end
 
+  def test_rejects_invalid_base_urls
+    [
+      "", "not a url", "ftp://api.typesafe.ai", "https://", "https://user:pw@api.typesafe.ai",
+      "https://api.typesafe.ai/?x=1", "https://api.typesafe.ai/#frag", "http://api.typesafe.ai", "http://10.0.0.5", 123
+    ].each do |value|
+      assert_raises(Typesafe::SDK::Error, value.inspect) do
+        Typesafe::SDK::Client.new(api_key: "sk-test", base_url: value, transport: FakeTransport.new)
+      end
+    end
+  end
+
+  def test_plain_http_needs_loopback_or_allow_http
+    %w[http://localhost:3000 http://127.0.0.1:3000 http://[::1]:3000 https://gateway.example/prefix/].each do |value|
+      Typesafe::SDK::Client.new(api_key: "sk-test", base_url: value, transport: FakeTransport.new)
+    end
+    client = Typesafe::SDK::Client.new(api_key: "sk-test", base_url: "http://gateway.internal/", allow_http: true, transport: FakeTransport.new)
+    assert_equal("http://gateway.internal", client.base_url)
+
+    error = assert_raises(Typesafe::SDK::Error) do
+      Typesafe::SDK::Client.new(api_key: "sk-test", base_url: "http://gateway.internal", transport: FakeTransport.new)
+    end
+    assert_match(/allow_http: true/, error.message)
+  end
+
   def test_uses_client_options
     transport = FakeTransport.new(response)
     client = Typesafe::SDK::Client.new(

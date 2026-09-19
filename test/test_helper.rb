@@ -27,9 +27,10 @@ end
 class LocalServer
   attr_reader :port, :connections, :requests
 
-  def initialize(&handler)
+  def initialize(host: "127.0.0.1", &handler)
     @handler = handler
-    @server = TCPServer.new("127.0.0.1", 0)
+    @host = host
+    @server = TCPServer.new(host, 0)
     @port = @server.addr[1]
     @connections = 0
     @requests = []
@@ -37,7 +38,7 @@ class LocalServer
   end
 
   def url
-    "http://127.0.0.1:#{port}"
+    @host.include?(":") ? "http://[#{@host}]:#{port}" : "http://#{@host}:#{port}"
   end
 
   def stop

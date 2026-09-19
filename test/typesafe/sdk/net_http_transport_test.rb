@@ -34,6 +34,18 @@ class NetHttpTransportTest < Minitest::Test
     assert_equal(1, @server.connections)
   end
 
+  def test_ipv6_loopback_round_trip
+    begin
+      @server = LocalServer.new(host: "::1") { |_request| [200, {}, JSON.generate(MODELS_BODY)] }
+    rescue SystemCallError
+      skip("no IPv6 loopback on this machine")
+    end
+    Typesafe::SDK::Client.open(api_key: "sk-local", base_url: @server.url) do |client|
+      assert_equal("http://[::1]:#{@server.port}", client.base_url)
+      assert_equal("jev-latest", client.models.list.first.name)
+    end
+  end
+
   def test_read_timeout_raises_timeout_error
     @server = LocalServer.new do |_request|
       sleep(2)
