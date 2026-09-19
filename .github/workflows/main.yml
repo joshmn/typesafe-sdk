@@ -9,21 +9,32 @@ on:
 
   workflow_call:
 
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}
     strategy:
+      fail-fast: false
       matrix:
         ruby:
-          - '3.4.2'
+          - '3.2'
+          - '3.3'
+          - '3.4'
+    env:
+      # irb (only needed for bin/console) pulls in rdoc and rbs, which need Ruby 3.3+.
+      BUNDLE_WITHOUT: development
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@984c0c890880bbf811283d6f09c4607c62d210a4 # v1.323.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
