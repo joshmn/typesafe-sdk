@@ -95,7 +95,7 @@ client.system_one(
 )
 ```
 
-The SDK checks the obvious mistakes before sending anything (no questions, a score with no levels, a hash choice with no criteria, a `Float::NAN` buried in your state) and raises `Typesafe::SDK::Error`, so you don't burn a round trip finding out.
+The SDK checks the obvious mistakes before sending anything (no questions, a score with fewer than two levels, a hash choice with no criteria, a `Float::NAN` buried in your state) and raises `Typesafe::SDK::Error`, so you don't burn a round trip finding out.
 
 ## State
 

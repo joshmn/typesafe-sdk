@@ -9,7 +9,7 @@ module Typesafe
 
       def initialize(criteria:, instructions: nil)
         raise(Error, "score criteria must be an array of level descriptions") unless criteria.is_a?(Array)
-        raise(Error, "score criteria must include at least one level") if criteria.empty?
+        raise(Error, "score criteria must include at least two levels") if criteria.size < 2
 
         @criteria = criteria
         @instructions = instructions

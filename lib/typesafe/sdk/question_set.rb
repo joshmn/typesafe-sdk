@@ -45,9 +45,9 @@ module Typesafe
         end
 
         def validate_score_criteria(name:, criteria:)
-          return unless criteria.nil? || (criteria.respond_to?(:empty?) && criteria.empty?)
+          return unless criteria.nil? || (criteria.respond_to?(:size) && criteria.size < 2)
 
-          raise(Error, "score question #{name.inspect} has no criteria, at least one level is required")
+          raise(Error, "score question #{name.inspect} needs at least two criteria levels")
         end
       end
     end
