@@ -65,7 +65,7 @@ module Typesafe
       end
 
       def start(uri:, timeout:)
-        connection = Net::HTTP.new(uri.host, uri.port)
+        connection = Net::HTTP.new(uri.hostname, uri.port)
         connection.use_ssl = uri.scheme == "https"
         apply_timeout(connection: connection, timeout: timeout)
         connection.start

@@ -22,6 +22,7 @@ module Typesafe
         api_key:,
         model: nil,
         base_url: nil,
+        allow_http: false,
         timeout: nil,
         headers: nil,
         user_agent: nil,
@@ -32,6 +33,7 @@ module Typesafe
         @configuration = Configuration.resolve(
           api_key: api_key,
           base_url: base_url,
+          allow_http: allow_http,
           model: model,
           timeout: timeout,
           headers: headers,

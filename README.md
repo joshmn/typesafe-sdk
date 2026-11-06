@@ -177,6 +177,7 @@ client = Typesafe::SDK::Client.new(
 | --- | --- |
 | `api_key:` | required |
 | `base_url:` | `https://api.typesafe.ai` |
+| `allow_http:` | `false` |
 | `model:` | `jev-latest` |
 | `timeout:` | `10.0` seconds per HTTP operation |
 | `headers:` | `{}` |
@@ -184,6 +185,8 @@ client = Typesafe::SDK::Client.new(
 | `logger:` | none |
 | `retry_policy:` | `Typesafe::SDK::RetryPolicy.new` |
 | `transport:` | `Typesafe::SDK::NetHttpTransport.new` |
+
+`base_url:` has to be `https`, because the API key travels in the `Authorization` header. Plain `http` is accepted for `localhost`, `127.0.0.1`, and `::1`, or anywhere if you pass `allow_http: true` for something like an internal gateway that terminates TLS for you. A `base_url` with credentials, a query string, or a fragment is rejected, since paths are appended to it verbatim.
 
 `system_one` also takes `model:`, `timeout:`, `retry_policy:`, `extra_headers:`, and `extra_body:` for a single call. `models.list` takes everything except the body stuff.
 
