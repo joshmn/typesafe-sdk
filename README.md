@@ -205,7 +205,7 @@ A `User-Agent` in the client's `headers:` works too, but `user_agent:` wins if y
 
 ## Retries
 
-The client retries 408, 429, and every 5xx (including TypeSafe's 529 overloaded), plus connection failures and timeouts. It does two retries by default with exponential backoff and jitter, honors `Retry-After` and `retry-after-ms`, and gives up once the whole call would blow past a 30-second budget.
+The client retries 408, 429, and every 5xx (including TypeSafe's 529 overloaded), plus connection failures and timeouts. It does two retries by default with exponential backoff and jitter, honors `Retry-After` and `retry-after-ms` up to a cap of 60 seconds (`RetryPolicy::RETRY_AFTER_MAX`, so a server can't park the client for an hour), and gives up once the whole call would blow past a 30-second budget.
 
 ```ruby
 policy = Typesafe::SDK::RetryPolicy.new(

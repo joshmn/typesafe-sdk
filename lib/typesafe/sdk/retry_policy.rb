@@ -4,6 +4,7 @@ module Typesafe
   module SDK
     class RetryPolicy
       DEFAULT_HTTP_STATUSES = [408, 429, *500..599].freeze
+      RETRY_AFTER_MAX = 60.0
 
       attr_reader :max_retries, :backoff_initial, :backoff_max, :backoff_jitter, :http_statuses,
         :respect_retry_after, :api_connection_error, :api_timeout_error, :exceptions, :predicate, :timeout
@@ -49,7 +50,7 @@ module Typesafe
       def delay_for(attempt:, error:)
         if respect_retry_after && error.is_a?(APIError)
           retry_after_ms = RetryAfter.parse(error.headers)
-          return retry_after_ms / 1000.0 if retry_after_ms
+          return [retry_after_ms / 1000.0, RETRY_AFTER_MAX].min if retry_after_ms
         end
         backoff(attempt)
       end

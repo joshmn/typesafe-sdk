@@ -59,6 +59,21 @@ class RetryPolicyTest < Minitest::Test
     assert_equal(0.5, ignoring.delay_for(attempt: 1, error: error))
   end
 
+  def test_retry_after_is_capped
+    policy = Typesafe::SDK::RetryPolicy.new
+    {
+      { "retry-after" => "59" } => 59.0,
+      { "retry-after" => "60" } => 60.0,
+      { "retry-after" => "3600" } => 60.0,
+      { "retry-after-ms" => "120000" } => 60.0,
+      { "retry-after" => (Time.now + 86_400).httpdate } => 60.0
+    }.each do |headers, expected|
+      error = Typesafe::SDK::APIError.new(status: 429, body: nil, headers: headers)
+      assert_equal(expected, policy.delay_for(attempt: 1, error: error), headers.inspect)
+    end
+    assert_equal(60.0, Typesafe::SDK::RetryPolicy::RETRY_AFTER_MAX)
+  end
+
   def test_retryable
     policy = Typesafe::SDK::RetryPolicy.new
 
